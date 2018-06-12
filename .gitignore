@@ -1,0 +1,12 @@
+data
+figures
+output
+notebooks
+.vscode
+.Rproj.user
+**/__pycache__
+*.sqlite
+*.Rhistory
+packrat/lib
+packrat/lib-ext
+packrat/lib-R
