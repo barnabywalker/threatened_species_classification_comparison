@@ -83,6 +83,7 @@ process_locations <- function(data) {
   #' @return A data frame with the cleaned location information.
    
   data %>%
+    mutate(locality = )
     mutate(locality = case_when(is.na(majorarea) & group == "ng_orchids_p" ~ minorarea,
                                 TRUE ~ majorarea)) %>%
     select(-majorarea, -minorarea) %>%
@@ -95,6 +96,52 @@ process_locations <- function(data) {
                                 TRUE ~ locality))
     
 }
+
+get_locality_from_level <- function(df, level) {
+  #' Gets the locality from a specified locality level.
+  #' 
+  #' Fills missing values in locality column from a specified locality level.
+  #' First creates a blank locality column if one didn't exist before.
+  #' 
+  #' @param df: Dataframe with specimen information at all locality levels.
+  #' 
+  #' @param level: Locality level to get value from.
+  #' 
+  #' @return The dataframe with locality information from the specified level.
+  
+  locality_level <- paste0("locality_", level)
+  
+  if (!("locality" %in% colnames(df))) {
+    df <- mutate(df, locality = NA_character_)
+  }
+  
+  df %>%
+    mutate(locality = case_when(is.na(locality) ~ !! rlang::sym(locality_level),
+                                TRUE ~ locality))
+}
+
+fill_locality <- function(df, locality_level) {
+  #' Fill locality from standardised locality levels.
+  #' 
+  #' Starts by getting locality information from the desired levels,
+  #' then fills missing values from successively lower levels.
+  #' 
+  #' @param df: Dataframe with specimen and locality information.
+  #' 
+  #' @param desired_level: The level to start filling at.
+  #' 
+  #' @return The dataframe with a full locality column.
+  
+  filled_df <- df
+  
+  while (locality_level >= 0) {
+    filled_df <- get_locality_from_level(filled_df, locality_level)
+    locality_level <- locality_level - 1
+  }
+  
+  return(filled_df)
+}
+
 
 clean_myrts <- function(location) {
   #' Clean a location string for the Myrcia group.

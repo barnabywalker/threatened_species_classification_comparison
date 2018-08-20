@@ -12,10 +12,12 @@
 #+
 library(knitr)
 
-info <- read_rds(here("output", "us_method_info.rds"))
+info <- 
+  here("output", "us_method_info.rds") %>%
+  read_rds()
 
 results <- 
-  here("output", "us_method_results.csv") %>%
+  here("output", paste(us_method_info$save_file, ".csv", sep="")) %>%
   read_csv() %>%
   mutate(obs = factor(obs),
          pred = factor(pred, levels=levels(obs)))

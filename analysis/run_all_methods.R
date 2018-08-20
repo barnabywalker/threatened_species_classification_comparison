@@ -17,7 +17,7 @@ print("Running random forests classification...")
 rf_method_info <- list(
   method = "Random forests",
   data_set = "all_species",
-  data_path = here("output", "random_forests_predictors.csv"),
+  data_path = here("data", "random_forests_predictors_filled.csv"),
   tune_method = TRUE,
   split_parameters = list(
     ratio = 0.75
@@ -52,9 +52,10 @@ print("Running US method classification...")
 us_method_info <- list(
   method = "US method",
   data_set = "all_species",
-  data_path = here("output", "us_method_predictors.csv"),
+  data_path = here("output", "cleaned_specimen_predictors.csv"),
   preprocess_parameters = list(
     clean_locations = TRUE,
+    locality_level = 3,
     standardise = FALSE,
     remove_nzv = FALSE,
     remove_correlated = FALSE,
@@ -73,7 +74,7 @@ print("Running rCAT classification...")
 rcat_method_info <- list(
   method = "rCAT",
   data_set = "all_species",
-  data_path = here("output", "coordinate_predictors.csv"),
+  data_path = here("output", "cleaned_specimen_predictors.csv"),
   preprocess_parameters = list(
     clean_locations = FALSE,
     standardise = FALSE,
@@ -93,7 +94,7 @@ print("Running ConR classification...")
 
 conr_method_info <- list(
   method = "ConR",
-  data_path = here("output", "coordinate_predictors.csv"),
+  data_path = here("output", "cleaned_specimen_predictors.csv"),
   preprocess_parameters = list(
     clean_locations = FALSE,
     standardise = FALSE,
@@ -113,7 +114,7 @@ print("Running Specimen count classification...")
 
 specimen_count_method_info <- list(
   method = "Specimen count",
-  data_path = here("output", "coordinate_predictors.csv"),
+  data_path = here("output", "cleaned_specimen_predictors.csv"),
   preprocess_parameters = list(
     clean_locations = FALSE,
     standardise = FALSE,

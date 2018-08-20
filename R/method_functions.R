@@ -3,8 +3,6 @@
 # classification method.                                                      #
 ###############################################################################
 
-library(ConR)
-library(rCAT)
 library(caret)
 library(randomForest)
 library(tidyverse)
@@ -143,7 +141,7 @@ run_rcat <- function(data, parameters, save_info=FALSE) {
     data$test %>%
     select(-threatened) %>%
     mutate(species = data$test_info$species) %>%
-    assess_species_rcat(cellsize=2000) %>%
+    rCAT::assess_species_rcat(cellsize=2000) %>%
     inner_join(extra_info, by="species") %>%
     mutate(obs = threatened,
            pred = case_when(eoo %in% c("VU", "EN", "CR") ~ "threatened",
@@ -326,7 +324,7 @@ assess_species_conr <- function(data) {
       dplyr::select(latitude, longitude) %>%
       as.data.frame() %>%
       mutate(species = "sp") %>%
-      IUCN.eval(DrawMap=FALSE, write_results=FALSE, verbose=FALSE) %>%
+      ConR::IUCN.eval(DrawMap=FALSE, write_results=FALSE, verbose=FALSE) %>%
       mutate(species = rownames(.)) %>%
       as.tibble() %>%
       rename(pred_category = Category_CriteriaB,

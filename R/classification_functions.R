@@ -10,8 +10,8 @@ source(here("R", "data_processing_functions.R"))
 library(tidyverse)
 
 run_classification <- function(method_info, 
-                               generate_report=FALSE, 
-                               save_info=FALSE, 
+                               report_file=NULL, 
+                               save_file=NULL, 
                                seed=NA) {
   #' Runs a classification of threatened species by a particular method.
   #' 
@@ -32,8 +32,14 @@ run_classification <- function(method_info,
     set.seed(seed)
   }
   
-  if (save_info) {
-    write_rds(method_info, here("output", paste(str_replace_all(str_to_lower(method_info$method), " ", "_"), "info.rds", sep="_")))
+  if (!is.null(save_file)) {
+    write_rds(method_info, paste(save_file, ".rds", sep=""))
+  }
+  
+  if (!is.null(save_file)) {
+    save_info <- TRUE
+  } else {
+    save_info <- FALSE
   }
   
   unprocessed_data <- read_csv(method_info$data_path)
@@ -45,12 +51,12 @@ run_classification <- function(method_info,
   
   data_splits <- split_data(processed_data, method_info$split_parameters)
   
-  method_results <- run_method(data_splits, parameters=method_info, save_info=save_info)
+  method_results <- run_method(data_splits, parameters=method_info, save_file=save_file)
   
-  if (generate_report) {
+  if (!is.null(report_file)) {
     report_date <- Sys.Date()
     report_file <- here("notebooks", "results_notebooks", "individual_results",
-                        paste(str_replace_all(str_to_lower(method_info$method), " ", "_"), ".nb.html", sep=""))
+                        paste(report_file, ".nb.html", sep=""))
     report_title <- method_info$method
     report_template <- paste(str_replace_all(str_to_lower(method_info$method), " ", "_"), ".R", sep="")
     
@@ -138,7 +144,8 @@ preprocess_data <- function(data, method, parameters=NULL, save_info=FALSE) {
   }
   
   if (parameters$clean_locations) {
-    processed_data <- process_locations(processed_data)
+    processed_data <- fill_locality(processed_data, 
+                                     locality_level=parameters$locality_level)
   }
   
   if (parameters$clean_coordinates) {
@@ -217,7 +224,7 @@ split_data <- function(data, parameters=NULL) {
     
 }
 
-run_method <- function(data, parameters, save_info=FALSE) {
+run_method <- function(data, parameters, save_file=NULL) {
   #' Run the specified classification method.
   #' 
   #' @param data A list containing a train and test set dataframe.
@@ -227,6 +234,12 @@ run_method <- function(data, parameters, save_info=FALSE) {
   #' @param save_info Whether to save any intermediate information about the method.
   #' 
   #' @return A dataframe of the classification results.
+  
+  if (!is.null(save_file)) {
+    save_info <- TRUE
+  } else {
+    save_info <- FALSE
+  }
   
   results <- switch(parameters$method,
                     `Random forests` = run_random_forests(data, parameters, save_info),
@@ -238,8 +251,8 @@ run_method <- function(data, parameters, save_info=FALSE) {
                                  'Random forests', 'US method', 'rCAT', 'ConR', 'Specimen count'.", 
                                  parameters$method)))
    
-  if (save_info) {
-    write_csv(results, here("output", paste(str_replace_all(str_to_lower(parameters$method), " ", "_"), "results.csv", sep="_")))
+  if (!is.null(save_file)) {
+    write_csv(results, here("output", paste(save_file, ".csv", sep="")))
   }
   
   results %>%
