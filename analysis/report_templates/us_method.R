@@ -11,22 +11,23 @@
 #' 
 #+
 library(knitr)
+source(here("R", "analysis_functions.R"))
 
 info <- 
   here("output", "us_method_info.rds") %>%
   read_rds()
 
 results <- 
-  here("output", paste(us_method_info$save_file, ".csv", sep="")) %>%
+  here("output", paste(us_method_info$save_file, "_results.csv", sep="")) %>%
   read_csv() %>%
   mutate(obs = factor(obs),
          pred = factor(pred, levels=levels(obs)))
 
- 
+
 #' ## method accuracy
 #' 
 #' The method accuracy is given by the confusion matrix summary of the results.
-confusion <- confusionMatrix(results$pred, results$obs)
+confusion <- confusionMatrix(results$pred, results$obs, positive="threatened")
 confusion
 
 #' This shows that the trained method **`r ifelse(confusion$overall["AccuracyPValue"] < 0.05, "is", "is not")` better than assigning the majority class**.
@@ -38,28 +39,29 @@ results %>%
   geom_tile() +
   geom_text(mapping=aes(label=n)) +
   scale_fill_distiller(palette="Blues", direction=1, name="") +
-  labs(x="observed", y="predicted", title="Resylts confusion matrix") +
+  labs(x="observed", y="predicted", title="Results confusion matrix") +
   guides(fill=FALSE)
 
 #' ## method performance on different groups
 #' 
 #' This is how the method performs on the test set when split into each of the separate groups.
+#+ warning=FALSE, message=FALSE
 summary_by_group <-
   results %>%
-  group_by(group) %>%
-  summarise(nobs = n(),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"])
+  summarise_results_by(group, positive_case="threatened")
 
 summary_by_group %>% kable()
 
 summary_by_group %>%
-  gather(measure, value, -group, -nobs, -accuracy_p_value) %>%
+  gather(measure, value, -group, -nobs, -accuracy_p_value, -lower_ci, -upper_ci, -default_accuracy) %>%
+  mutate(lower_ci=ifelse(measure == "accuracy", lower_ci, NA),
+         upper_ci=ifelse(measure == "accuracy", upper_ci, NA),
+         default_accuracy=ifelse(measure == "accuracy", default_accuracy, NA),
+         stick_start=ifelse(measure == "accuracy", NA, value)) %>%
   ggplot(mapping=aes(x=reorder(group, nobs), y=value, colour=group)) +
-  geom_segment(aes(xend=reorder(group, nobs), yend=0), color="grey50") +
+  geom_segment(mapping=aes(xend=reorder(group, nobs), yend=0, y=stick_start), colour="grey50") +
+  geom_segment(mapping=aes(xend=reorder(group, nobs), y=lower_ci, yend=upper_ci), colour="black", size=1) +
+  geom_point(mapping=aes(x=reorder(group, nobs), y=default_accuracy), pch=17) +
   geom_point() +
   coord_flip() +
   facet_grid(measure~.) +
@@ -118,13 +120,12 @@ results %>%
                           abundance ~ "abundance",
                           temporal2 ~ "temporal2",
                           TRUE ~ "none")) %>%
-  group_by(group, step) %>%
-  summarise(accuracy = sum(obs == pred) /n()) %>%
+  summarise_results_by(group, step, positive_case="threatened") %>%
   mutate(step = factor(step, levels=rev(steps), ordered=TRUE)) %>%
   complete(group, step, fill=list(accuracy=NA)) %>%
   ggplot(mapping=aes(x=step, y=accuracy, colour=step)) +
-  geom_point() +
-  geom_segment(mapping=aes(xend=step, yend=0), colour="grey50") +
+  geom_segment(mapping=aes(xend=step, y=lower_ci, yend=upper_ci), colour="black", size=1) +
+  geom_point(cex=2) +
   coord_flip() +
   facet_grid(group ~ .) +
   guides(colour=FALSE) +
@@ -137,20 +138,19 @@ categories <- c("LC", "NT", "VU", "EN", "CR")
 summary_by_category <-
   results %>%
   mutate(category = factor(category, levels=categories, ordered=TRUE)) %>%
-  group_by(category) %>%
-  summarise(nobs = n(),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"])
+  summarise_results_by(category, positive_case="threatened")
 
 summary_by_category %>% knitr::kable()
 
 summary_by_category %>%
-  gather(measure, value, -category, -nobs, -accuracy_p_value) %>%
+  gather(measure, value, -category, -nobs, -accuracy_p_value, -lower_ci, -upper_ci, -default_accuracy) %>%
+  mutate(lower_ci=ifelse(measure == "accuracy", lower_ci, NA),
+         upper_ci=ifelse(measure == "accuracy", upper_ci, NA),
+         default_accuracy=ifelse(measure == "accuracy", default_accuracy, NA),
+         stick_start=ifelse(measure == "accuracy", NA, value)) %>%
   ggplot(mapping=aes(x=category, y=value, colour=category)) +
-  geom_segment(aes(xend=category, yend=0), color="grey50") +
+  geom_segment(mapping=aes(xend=category, yend=0, y=stick_start), colour="grey50") +
+  geom_segment(mapping=aes(xend=category, y=lower_ci, yend=upper_ci), colour="black", size=1) +
   geom_point() +
   coord_flip() +
   facet_grid(measure~.) +

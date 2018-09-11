@@ -77,44 +77,16 @@ rl_criteria <-
 
 test_set_summary <-
   results_data %>%
-  count(method, category) %>%
-  group_by(method) %>%
-  mutate(n_obs = sum(n),
-         p = n / n_obs,
-         category = paste("p", category, sep="_")) %>%
-  select(-n) %>%
-  spread(category, p) %>%
-  mutate(p_threatened = p_CR + p_EN + p_VU)
+  summarise_categories_by(method)
 
 test_set_summary_by_group <-
   results_data %>%
-  count(method, group, category) %>%
-  group_by(method, group) %>%
-  mutate(n_obs = sum(n),
-         p = n / n_obs,
-         category = paste("p", category, sep="_")) %>%
-  select(-n) %>%
-  spread(category, p) %>%
-  mutate(p_threatened = p_CR + p_EN + p_VU)
+  summarise_categories_by(method, group)
 
 # count assessments with each criteria
 test_set_criteria <- 
   results_data %>%
-  add_count(method) %>%
-  mutate(criteria_a = ifelse(is.na(criteria), FALSE, str_detect(criteria, "A")),
-         criteria_b = ifelse(is.na(criteria), FALSE, str_detect(criteria, "B")),
-         criteria_c = ifelse(is.na(criteria), FALSE, str_detect(criteria, "C")),
-         criteria_d = ifelse(is.na(criteria), FALSE, str_detect(criteria, "D")),
-         criteria_e = ifelse(is.na(criteria), FALSE, str_detect(criteria, "E")),
-         missing = is.na(criteria)) %>%
-  select(-category, -criteria, -obs, -pred, -group) %>%
-  gather(criteria, value, -species, -method, -n) %>%
-  mutate(criteria = str_extract(criteria, "(?<=\\_)\\w")) %>%
-  group_by(method, criteria) %>%
-  summarise(p = sum(value) / first(n)) %>%
-  mutate(criteria = ifelse(is.na(criteria), "missing", criteria)) %>%
-  spread(criteria, p) %>%
-  arrange(method)
+  summarise_criteria_by(method)
 
 # find proportion with any criteria
 criteria_presence <-
@@ -128,163 +100,72 @@ criteria_presence <-
 criteria_count_threatened <-
   results_data %>%
   filter(obs == "threatened") %>%
-  add_count(method) %>%
-  mutate(criteria_a = ifelse(is.na(criteria), FALSE, str_detect(criteria, "A")),
-         criteria_b = ifelse(is.na(criteria), FALSE, str_detect(criteria, "B")),
-         criteria_c = ifelse(is.na(criteria), FALSE, str_detect(criteria, "C")),
-         criteria_d = ifelse(is.na(criteria), FALSE, str_detect(criteria, "D")),
-         criteria_e = ifelse(is.na(criteria), FALSE, str_detect(criteria, "E")),
-         missing = is.na(criteria)) %>%
-  select(-category, -criteria, -obs, -pred, -group) %>%
-  gather(criteria, value, -species, -method, -n) %>%
-  mutate(criteria = str_extract(criteria, "(?<=\\_)\\w")) %>%
-  group_by(method, criteria) %>%
-  summarise(p = sum(value) / first(n)) %>%
-  mutate(criteria = ifelse(is.na(criteria), "missing", criteria)) %>%
-  spread(criteria, p) %>%
-  arrange(method)
+  summarise_criteria_by(method)
 
 # count assessments with each criteria in each group
 criteria_count_by_group <- 
   results_data %>%
-  add_count(group, method) %>%
-  mutate(criteria_a = ifelse(is.na(criteria), FALSE, str_detect(criteria, "A")),
-         criteria_b = ifelse(is.na(criteria), FALSE, str_detect(criteria, "B")),
-         criteria_c = ifelse(is.na(criteria), FALSE, str_detect(criteria, "C")),
-         criteria_d = ifelse(is.na(criteria), FALSE, str_detect(criteria, "D")),
-         criteria_e = ifelse(is.na(criteria), FALSE, str_detect(criteria, "E")),
-         missing = is.na(criteria)) %>%
-  select(-category, -criteria, -obs, -pred) %>%
-  gather(criteria, value, -species, -group, -method, -n) %>%
-  mutate(criteria = str_extract(criteria, "(?<=\\_)\\w")) %>%
-  group_by(method, group, criteria) %>%
-  summarise(p = sum(value) / first(n)) %>%
-  mutate(criteria = ifelse(is.na(criteria), "missing", criteria)) %>%
-  filter(!is.na(group)) %>%
-  spread(criteria, p) %>%
-  arrange(group)
+  summarise_criteria_by(group, method)
 
 criteria_count_threatened_by_group <- 
   results_data %>%
   filter(obs == "threatened") %>%
-  add_count(group, method) %>%
-  mutate(criteria_a = ifelse(is.na(criteria), FALSE, str_detect(criteria, "A")),
-         criteria_b = ifelse(is.na(criteria), FALSE, str_detect(criteria, "B")),
-         criteria_c = ifelse(is.na(criteria), FALSE, str_detect(criteria, "C")),
-         criteria_d = ifelse(is.na(criteria), FALSE, str_detect(criteria, "D")),
-         criteria_e = ifelse(is.na(criteria), FALSE, str_detect(criteria, "E")),
-         missing = is.na(criteria)) %>%
-  select(-category, -criteria, -obs, -pred) %>%
-  gather(criteria, value, -species, -group, -method, -n) %>%
-  mutate(criteria = str_extract(criteria, "(?<=\\_)\\w")) %>%
-  group_by(method, group, criteria) %>%
-  summarise(p = sum(value) / first(n)) %>%
-  mutate(criteria = ifelse(is.na(criteria), "missing", criteria)) %>%
-  filter(!is.na(group)) %>%
-  spread(criteria, p) %>%
-  arrange(group)
+  summarise_criteria_by(group, method)
 
-# summarise the criteria proportions overall for plants on the Red List
-rl_criteria_count <-
+# add a summary of the criteria proportions overall for plants on the Red List
+criteria_count_by_group <-
   rl_criteria %>%
-  select(`Species ID`, `Red List criteria`) %>%
-  mutate(criteria_a = ifelse(is.na(`Red List criteria`), FALSE, 
-                             str_detect(`Red List criteria`, "A")),
-         criteria_b = ifelse(is.na(`Red List criteria`), FALSE, 
-                             str_detect(`Red List criteria`, "B")),
-         criteria_c = ifelse(is.na(`Red List criteria`), FALSE, 
-                             str_detect(`Red List criteria`, "C")),
-         criteria_d = ifelse(is.na(`Red List criteria`), FALSE, 
-                             str_detect(`Red List criteria`, "D")),
-         criteria_e = ifelse(is.na(`Red List criteria`), FALSE, 
-                             str_detect(`Red List criteria`, "E")),
-         missing = is.na(`Red List criteria`)) %>%
-  select(-`Red List criteria`) %>%
-  gather(criteria, value, -`Species ID`) %>%
-  mutate(criteria = case_when(criteria == "missing" ~ "missing",
-                              TRUE ~ str_extract(criteria, "(?<=\\_)\\w"))) %>%
-  group_by(criteria) %>%
-  summarise(n = sum(value)) %>%
-  mutate(p = n / sum(n))
+  rename(criteria=`Red List criteria`) %>%
+  mutate(method="IUCN Red List",
+         group=NA_character_,
+         species=paste(Genus, Species)) %>%
+  summarise_criteria_by(group, method) %>%
+  bind_rows(criteria_count_by_group)
 
 # analyse overall results -----------------------------------------------------
 
 results_overall <- 
   results_data %>%
-  group_by(method) %>%
-  summarise(nobs = n(),
-            n_correct = sum(obs == pred),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"])
-
-# test for significance from the default accuracy
-
-results_overall <-
-  results_overall %>%
-  group_by(method) %>%
-  # update flat beta priors and draw from posterior
-  mutate(samples = list(rbeta(10000, 1+n_correct, 1+nobs-n_correct))) %>%
-  mutate(posterior_accuracy = map_dbl(samples, mean),
-         ci_hi = map_dbl(samples, ~hdi(.x, 0.95)[2]),
-         ci_lo = map_dbl(samples, ~hdi(.x, 0.95)[1]),
-         significance = case_when(ci_lo > default_accuracy ~ "significant",
-                                  TRUE ~ "not significant")) %>%
-  select(-accuracy_p_value, -samples)
+  summarise_results_by(method, positive_case="threatened") %>%
+  select(-upper_ci, -lower_ci) %>%
+  mutate(n_correct = nobs * accuracy) %>%
+  model_accuracy_by(method) %>%
+  select(-accuracy_p_value)
 
 # analyse results by group ----------------------------------------------------
 
 results_by_group <-
   results_data %>%
-  group_by(method, group) %>%
-  summarise(nobs = n(),
-            n_correct = sum(obs == pred),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"]) %>%
-  group_by(method, group) %>%
-  mutate(samples = list(rbeta(10000, 1+n_correct, 1+nobs-n_correct))) %>%
-  mutate(posterior_accuracy = map_dbl(samples, mean),
-         ci_hi = map_dbl(samples, ~hdi(.x, 0.95)[2]),
-         ci_lo = map_dbl(samples, ~hdi(.x, 0.95)[1]),
-         significance = case_when(ci_lo > default_accuracy ~ "significant",
-                                  TRUE ~ "not significant")) %>%
-  select(-accuracy_p_value, -samples)
+  summarise_results_by(method, group, positive_case="threatened") %>%
+  select(-upper_ci, -lower_ci) %>%
+  mutate(n_correct = nobs * accuracy) %>%
+  model_accuracy_by(method, group) %>%
+  select(-accuracy_p_value)
+
+# results by category ---------------------------------------------------------
+results_by_category <-
+  results_data %>%
+  summarise_results_by(method, category, positive_case="threatened") %>%
+  select(-upper_ci, -lower_ci) %>%
+  mutate(n_correct = nobs * accuracy) %>%
+  model_accuracy_by(method, category) %>%
+  select(-accuracy_p_value)
 
 # pairwise differences between method results ---------------------------------
 
 # tabulate true positives, etc.
 confusion_table <-
   results_data %>%
-  group_by(method) %>%
-  summarise(tp = sum(obs == pred & pred == "not_threatened"),
-            fp = sum(obs != pred & pred == "not_threatened"),
-            tn = sum(obs == pred & pred == "threatened"),
-            fn = sum(obs != pred & pred == "threatened"))
+  calculate_confusion_by(method)
 
 # model method performance metrics
 confusion_samples <- 
-  confusion_table %>%
-  group_by(method) %>%
-  # update flat dirichlet priors and draw samples form posterior
-  mutate(samples = list(rdirichlet(10000, c(1+tp, 1+fp, 1+tn, 1+fn)) %>% 
-                          as.tibble() %>% 
-                          set_colnames(c("tp", "fp", "tn", "fn")))) %>%
-  select(-tp, -fn, -tn, -fp) %>%
-  unnest() %>%
-  mutate(sensitivity = tp / (tp + fn), 
-         specificity = tn / (tn + fp), 
-         accuracy = (tp + tn) / (tp + fp + fn + tn)) %>%
-  select(-tp, -fp, -tn, -fn)
+  results_data %>%
+  model_metrics_by(method)
 
 # calculate pairwise differences
-method_differences <-
-  map_dfr(unique(confusion_samples$method), 
-          ~pairwise_method_test(confusion_samples, .x))
+method_differences <- map_dfr(unique(confusion_samples$method), 
+                              ~pairwise_method_test(confusion_samples, .x))
 
 method_significant_differences <-
   method_differences %>%
@@ -338,8 +219,6 @@ criteria_accuracy <-
             difference_ci_lo = HDInterval::hdi(difference, 0.95)[1],
             significance = case_when(difference_ci_lo < 0 & difference_ci_hi > 0 ~ "not significant",
                                      TRUE ~ "significant"))
-
-
 
 # analyse differences in criteria by group ------------------------------------
 
@@ -436,9 +315,9 @@ writexl::write_xlsx(list(test_set_summary = test_set_summary,
                          test_set_has_criteria = criteria_presence,
                          test_set_criteria_threatened = criteria_count_threatened,
                          test_set_criteria_threat_group = criteria_count_threatened_by_group,
-                         red_list_criteria = rl_criteria_count,
                          overall_results = results_overall,
                          results_by_group = results_by_group,
+                         results_by_category = results_by_category,
                          confusion_table = confusion_table,
                          confusion_samples_summary = confusion_samples_summary,
                          differences_between_methods = method_differences,

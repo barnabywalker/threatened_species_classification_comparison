@@ -7,12 +7,9 @@
 #' 
 #' This gives an overview of the results from running the different classification methods. More in depth analysis of the results for each approach can be found in:
 #' 
-#' #### Random forests trained on
-#' * [All species together](individual_results/random_forests_all_species.nb.html)
-#' * Each data set in turn: [legumes](individual_results/random_forests_legumes.nb.html), [Madagascar palms](individual_results/random_forests_madagascar_palms.nb.html), [Aulomyrcia](individual_results/random_forests_myrts.nb.html), [coffees](individual_results/random_forests_coffee.nb.html), and [New Guinea orchids](individual_results/random_forests_ng_orchids_p.nb.html).
-#' * [Just the Red List species](individual_results/random_forests_redlist.nb.html).
+#' #### [Random forests](individual_results/random_forests.nb.html)
 #' 
-#' #### [Krupnick's algorithm](individual_results/krupnick.nb.html)
+#' #### [US Method](individual_results/us_method.nb.html)
 #' 
 #' #### [EOO assessments from rCAT](individual_results/rcat.nb.html)
 #' 
@@ -30,25 +27,31 @@ library(ggridges)
 #' 
 #' Below is a table summarising how each model performed.
 #+ fig.width=8, warning=FALSE
+colours <- c('#bfd3e6', '#9ebcda', '#8c96c6', '#8856a7', '#810f7c')
 
 results_table <- 
   all_results %>%
-  group_by(method) %>%
-  summarise(nobs = n(),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"])
+  summarise_results_by(method, positive_case="threatened")
 
 results_table %>% kable()
+
+methods <- c("Random forests", "Krupnick", "ConR", "rCAT", "Specimen count")
+
+method_order <- results_table %>%
+  arrange(accuracy) %>%
+  pull(method)
+
 results_table %>%
   mutate(label = case_when(accuracy_p_value <= 0.05 ~ "*",
-                           TRUE ~ NA_character_)) %>%
+                           TRUE ~ NA_character_),
+         method = factor(method, levels=method_order)) %>%
   ggplot(mapping=aes(x=method, fill=method, y=accuracy)) + 
   geom_col(position="dodge") +
-  geom_text(mapping=aes(label=label, colour=method, y=accuracy+0.02), position=position_dodge(width=0.9), size=6, vjust=0.65) +
+  geom_errorbar(mapping=aes(ymin=lower_ci, ymax=upper_ci), width=0.25, size=1) +
+  geom_text(mapping=aes(label=label, y=upper_ci+0.02), position=position_dodge(width=0.9), size=6, vjust=0.7) +
   coord_flip() +
+  scale_fill_manual(values=colours, name="") +
+  guides(fill=FALSE) +
   theme(legend.position = "bottom") + 
   labs(x="", title="Comparison of model accuracies\n(significantly better than assigning the majority class indicated by '*')")
 
@@ -56,40 +59,24 @@ results_table %>%
 #' 
 #' The above compares the accuracy of each model overall, so below is a comparison of each model's performance on the different groups.
 
-methods <- c("Random forests", "Krupnick", "ConR", "rCAT", "Specimen count")
-colours <- c('#bfd3e6', '#9ebcda', '#8c96c6', '#8856a7', '#810f7c')
-method_order <- results_table %>%
-  arrange(accuracy) %>%
-  pull(method)
-
 per_group_results <-
   all_results %>%
-  group_by(method, group) %>%
-  summarise(nobs = n(),
-            accuracy = confusionMatrix(pred, obs)$overall["Accuracy"],
-            default_accuracy = confusionMatrix(pred, obs)$overall["AccuracyNull"],
-            accuracy_p_value = confusionMatrix(pred, obs)$overall["AccuracyPValue"],
-            sensitivity = confusionMatrix(pred, obs)$byClass["Sensitivity"],
-            specificity = confusionMatrix(pred, obs)$byClass["Specificity"]) %>%
-  filter(!is.na(group))
+  summarise_results_by(method, group, positive_case="threatened")
 
 per_group_results %>% kable()
 
 per_group_results %>%
-  ungroup() %>%
   mutate(label = case_when(accuracy_p_value <= 0.05 ~ "*",
                            TRUE ~ NA_character_),
          method = factor(method, levels=method_order)) %>%
-  complete(method, group, fill=list(accuracy=0, accuracy_p_value=NA, label=NA_character_)) %>%
   ggplot(mapping=aes(fill=method, x=group, y=accuracy)) + 
   geom_bar(stat="identity", position="dodge") +
-  geom_text(mapping=aes(label=label, colour=method, y=accuracy+0.02), position=position_dodge(width=0.9), size=6, vjust=0.65) +
+  geom_errorbar(mapping=aes(ymin=lower_ci, ymax=upper_ci), width=0.5, size=1, position=position_dodge(width=0.9)) +
+  geom_text(mapping=aes(label=label, y=upper_ci+0.02), position=position_dodge(width=0.9), size=6, vjust=0.7) +
   coord_flip() +
   theme(legend.position = "bottom") + 
   labs(x="", title="Comparison of method accuracies on each group\n(significantly better than assigning the majority class indicated by '*')") +
-  scale_colour_manual(values=colours, name="", drop=FALSE) +
-  scale_fill_manual(values=colours, name="", drop=FALSE) +
-  scale_x_discrete(drop=FALSE)
+  scale_fill_manual(values=colours, name="", drop=FALSE)
 
 #' ## Are there significant differences in accuracy between methods?
 #' 
@@ -98,18 +85,7 @@ per_group_results %>%
 
 measures_samples <-
   all_results %>%
-  group_by(method) %>%
-  summarise(tp = sum(obs == pred & pred == "not_threatened"),
-            fp = sum(obs != pred & pred == "not_threatened"),
-            tn = sum(obs == pred & pred == "threatened"),
-            fn = sum(obs != pred & pred == "threatened")) %>%
-  group_by(method) %>%
-  mutate(samples = list(rdirichlet(10000, c(1 + tp, 1 + fp,1 + tn,1 + fn)) %>% as.tibble() %>% set_colnames(c("tp", "fp", "tn", "fn")))) %>%
-  select(-tp, -fp, -tn, -fn) %>%
-  unnest() %>%
-  mutate(sensitivity = tp / (tp + fn), specificity = tn / (tn + fp), accuracy = (tp + tn) / (tp + fp + fn + tn)) %>%
-  select(-tp, -fp, -tn, -fn) %>%
-  ungroup() %>%
+  model_metrics_by(method) %>%
   mutate(method = factor(method, levels=method_order, ordered=TRUE))
 
 measures_samples %>%
@@ -131,7 +107,7 @@ measures_samples %>%
          ci_lo = quantile(value, 0.025)) %>%
   ggplot(mapping=aes(x=method, y=mean, colour=method)) +
   geom_point() +
-  geom_segment(mapping=aes(xend=method, y=ci_hi, yend=ci_lo)) +
+  geom_segment(mapping=aes(xend=method, y=ci_hi, yend=ci_lo), colour="black", size=1) +
   coord_flip() +
   facet_grid(measure~.) +
   scale_colour_manual(values=colours) +

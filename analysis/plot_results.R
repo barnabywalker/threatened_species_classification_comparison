@@ -9,13 +9,22 @@ library(ggpubr)
 library(jsonlite)
 
 # load data ------------------------------------------------------------------
+method_map <- list(`Random forests` = "Random Forests",
+                      `Specimen count` = "Specimen Count",
+                      `US method` = "US Method")
+
+name_map <- list(Coffee = "Coffea")
+
 results_by_group <- 
   here("output", "method_comparison_and_analysis.xlsx") %>% 
-  read_xlsx(sheet="results_by_group")
+  read_xlsx(sheet="results_by_group") %>%
+  mutate(method = recode(method, !!!method_map),
+         group = recode(group, !!!name_map))
 
 results_samples_summary <-
   here("output", "method_comparison_and_analysis.xlsx") %>% 
-  read_xlsx(sheet="confusion_samples_summary")
+  read_xlsx(sheet="confusion_samples_summary") %>%
+  mutate(method = recode(method, !!!method_map))
 
 overall_importance <-
   here("output", "method_comparison_and_analysis.xlsx") %>% 
@@ -23,11 +32,13 @@ overall_importance <-
 
 importance_by_group <- 
   here("output", "method_comparison_and_analysis.xlsx") %>% 
-  read_xlsx(sheet="predictor_importance_by_group")
+  read_xlsx(sheet="predictor_importance_by_group") %>%
+  mutate(group = recode(group, !!!name_map))
 
 rf_results <-
   here("output", "random_forests_results.csv") %>%
-  read_csv()
+  read_csv() %>%
+  mutate(group = recode(group, !!!name_map))
 
 us_method_steps <-
   here("output", "method_comparison_and_analysis.xlsx") %>% 
@@ -39,28 +50,42 @@ specimen_count_thresholds <-
 
 criteria_accuracy <-
   here("output", "method_comparison_and_analysis.xlsx") %>% 
-  read_xlsx(sheet="criteria_accuracy")
+  read_xlsx(sheet="criteria_accuracy") %>%
+  mutate(method = recode(method, !!!method_map))
 
 criteria_accuracy_by_group <-
   here("output", "method_comparison_and_analysis.xlsx") %>% 
-  read_xlsx(sheet="criteria_accuracy_by_group")
+  read_xlsx(sheet="criteria_accuracy_by_group") %>%
+  mutate(method = recode(method, !!!method_map),
+         group = recode(group, !!!name_map))
+
+rcat_results <-
+  here("output", "rcat_results.csv") %>%
+  read_csv() %>%
+  mutate(group = recode(group, !!!name_map))
 
 # compare method performances ------------------------------------------------
 bar_colours <- c('#bfd3e6', '#9ebcda', '#8c96c6', '#8856a7', '#810f7c')
 
+method_order <- 
+  results_samples_summary %>%
+  select(method, measure, mu) %>%
+  spread(measure, mu) %>%
+  arrange(accuracy) %>%
+  pull(method)
+
 # overall
 method_comparison <-
   results_samples_summary %>%
-  ungroup() %>%
   mutate(measure = factor(measure, levels=c("accuracy", "sensitivity", "specificity"), ordered=TRUE),
-         method = fct_reorder(method, observed_value, desc=TRUE),
+         method = factor(method, levels=method_order, ordered=TRUE),
          significance = case_when(significance == "significant" & measure == "accuracy" ~ "*",
                                   TRUE ~ NA_character_),
          label = case_when(measure == "accuracy" ~ as.character(method),
                            TRUE ~ NA_character_)) %>%
   ggplot(mapping=aes(x=method, y=observed_value, fill=method)) +
   geom_bar(stat="identity", position="dodge") +
-  geom_text(mapping=aes(label=significance, y=ci_hi+0.025, colour=method), size=4, vjust=0.75) +
+  geom_text(mapping=aes(label=significance, y=ci_hi+0.025), size=4, vjust=0.75) +
   geom_errorbar(mapping=aes(x=method, ymin=ci_lo, ymax=ci_hi), width=0.5) +
   coord_flip() +
   facet_grid(measure~.) +
@@ -79,17 +104,17 @@ method_comparison <-
 # by group
 method_comparison_by_group <-
   results_by_group %>%
-  ungroup() %>%
   mutate(significance = case_when(significance == "significant" ~ "*",
                                   TRUE ~ ""),
-         group = paste("       ", group),
+         group = paste("          ", group),
          group = factor(group, levels=rev(unique(group)), ordered=TRUE),
-         method = fct_reorder(method, accuracy, desc=TRUE),
-         thing = "a") %>%
-  complete(method, group, fill=list(accuracy=0, significance="", ci_hi=NA, ci_lo=NA, thing="a")) %>%
+         method = factor(method, levels=method_order, ordered=TRUE),
+         placeholder = "a") %>%
+  complete(method, group, fill=list(accuracy=0, significance="", ci_hi=NA, ci_lo=NA, placeholder="a")) %>%
   ggplot(mapping=aes(x=group, y=accuracy, fill=method)) +
   geom_bar(stat="identity", position="dodge") +
-  geom_text(mapping=aes(label=significance, y=ci_hi+0.025, colour=method), size=4, vjust=0.75, position=position_dodge(width=0.9)) +
+  geom_text(mapping=aes(label=significance, y=ci_hi+0.025), size=4, vjust=0.75, 
+            position=position_dodge(width=0.9)) +
   geom_errorbar(mapping=aes(x=group, ymin=ci_lo, ymax=ci_hi), width=0.5, position=position_dodge(width=0.9)) +
   coord_flip() +
   theme_pubclean() +
@@ -103,14 +128,15 @@ method_comparison_by_group <-
         legend.box.just = 1,
         strip.background = element_blank(),
         strip.text = element_text(colour="white"),
-        legend.justification = c(0,0)) +
+        legend.justification = c(-0.3,0)) +
   scale_fill_manual(values=bar_colours, name="") +
   scale_colour_manual(values=bar_colours, name="") +
   scale_y_continuous(limits=c(0, 1.05), expand=c(0, 0)) +
-  facet_grid(thing~.) +
+  facet_grid(placeholder~.) +
   labs(x="", y="Accuracy")
 
-combined_plot <- ggarrange(method_comparison, method_comparison_by_group, ncol=1, nrow=2, labels=c("A", "B"), font.label=list(size=10))
+combined_plot <- 
+  ggarrange(method_comparison, method_comparison_by_group, ncol=1, nrow=2, labels=c("A", "B"), font.label=list(size=10))
 
 ggsave(here("figures", "method_comparison.png"), plot=combined_plot, dpi=600, width=3.5, height=6)
 
@@ -245,7 +271,9 @@ ggsave(here("figures", "specimen_count_threshold_accuracy.png"), plot=specimen_c
 
 # criteria accuracies ---------------------------------------------------------
 criteria_differences <-
-  ggplot(data=criteria_accuracy, mapping=aes(x=method, y=mean_difference, colour=significance)) +
+  criteria_accuracy %>%
+  mutate(method = factor(method, levels=method_order, ordered=TRUE)) %>%
+  ggplot(mapping=aes(x=method, y=mean_difference, colour=significance)) +
   geom_point() +
   geom_segment(mapping=aes(xend=method, y=difference_ci_hi, yend=difference_ci_lo)) +
   geom_hline(yintercept=0, linetype=2, colour="grey50") +
@@ -256,10 +284,12 @@ criteria_differences <-
   theme(panel.border = element_rect(fill=NA, colour="grey80")) +
   facet_grid(criteria~.)
 
-ggsave(here("figures", "criteria_differences.png"), plot=criteria_differences, dpi=600, width=9, height=9)
+ggsave(here("figures", "criteria_differences.png"), plot=criteria_differences, dpi=600, width=6, height=6)
 
 criteria_differences_by_group <-
-  ggplot(data=criteria_accuracy_by_group, mapping=aes(x=method, y=mean_difference, colour=significance)) +
+  criteria_accuracy_by_group %>%
+  mutate(method = factor(method, levels=method_order, ordered=TRUE)) %>%
+  ggplot(mapping=aes(x=method, y=mean_difference, colour=significance)) +
   geom_point() +
   geom_segment(mapping=aes(xend=method, y=difference_ci_hi, yend=difference_ci_lo)) +
   geom_hline(yintercept=0, linetype=2, colour="grey50") +
@@ -271,3 +301,20 @@ criteria_differences_by_group <-
   facet_grid(group ~ criteria)
 
 ggsave(here("figures", "criteria_differences_by_group.png"), plot=criteria_differences_by_group, dpi=600, width=6.5, height=9)
+
+# extent of occurrence boxplots -----------------------------------------------
+
+eoo_boxplot <-
+  rcat_results %>%
+  mutate(group="Overall") %>%
+  bind_rows(rcat_results) %>%
+  ggplot(mapping=aes(x=group, y=eoo_area, fill=group)) +
+  stat_boxplot(geom="errorbar", width=0.25) +
+  geom_boxplot(notch=TRUE) +
+  scale_y_log10() +
+  scale_fill_manual(values=rev(colors)) +
+  guides(fill=FALSE) + 
+  labs(x="Group", y=expression("Extent of occurrence / km"^2)) +
+  theme_pubclean()
+
+ggsave(here("figures", "eoo_boxplot.png"), plot=eoo_boxplot, dpi=600, width=6, height=4)

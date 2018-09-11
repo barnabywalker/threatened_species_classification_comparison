@@ -23,7 +23,7 @@ run_random_forests <- function(data, parameters, save_info=FALSE) {
   #' @param save_info Whether to save the model and test and train sets.
   #' 
   #' @return A data frame of the test set predictions.
-  
+
   fit_control <- trainControl(method=parameters$tuning_parameters$cv_method, 
                               number=parameters$tuning_parameters$cv_folds, 
                               repeats=parameters$tuning_parameters$cv_repeats, 
@@ -103,7 +103,7 @@ run_us_method <- function(data, parameters, save_info=FALSE) {
               abundance = n() <= median_specimens,
               temporal2 = after_1960 <= median_specimens_after_1960) %>%
     mutate(obs = threatened,
-           pred = case_when(temporal1 ~ "potentially_extinct",
+           pred = case_when(temporal1 ~ "threatened",
                             spatial ~ "not_threatened",
                             abundance ~ "threatened",
                             temporal2 ~ "threatened",
@@ -141,7 +141,7 @@ run_rcat <- function(data, parameters, save_info=FALSE) {
     data$test %>%
     select(-threatened) %>%
     mutate(species = data$test_info$species) %>%
-    rCAT::assess_species_rcat(cellsize=2000) %>%
+    assess_species_rcat(cellsize=2000) %>%
     inner_join(extra_info, by="species") %>%
     mutate(obs = threatened,
            pred = case_when(eoo %in% c("VU", "EN", "CR") ~ "threatened",
@@ -203,6 +203,8 @@ run_specimen_count <- function(data, parameters, save_info=FALSE) {
   #' 
   #' @return A data frame of the test set predictions.
   
+  threshold_measure <- rlang::sym(parameters$threshold_measure)
+  
   specimen_counts <-
     data$test %>%
     cbind(data$test_info) %>%
@@ -211,9 +213,10 @@ run_specimen_count <- function(data, parameters, save_info=FALSE) {
     mutate(obs = threatened)
   
   threshold_accuracy <- map_dfr(seq(1:100), calculate_threshold_accuracy, specimen_counts)
+  
   best_threshold <-
     threshold_accuracy %>%
-    arrange(desc(accuracy)) %>%
+    arrange(desc(!! threshold_measure)) %>%
     head(1) %>%
     pull(threshold)
   
@@ -230,7 +233,7 @@ run_specimen_count <- function(data, parameters, save_info=FALSE) {
   return(results)
 }
 
-calculate_threshold_accuracy <- function(threshold, specimens) {
+calculate_threshold_accuracy <- function(threshold, specimens, positive_case="threatened") {
   #' Calculate the accuracy for a given threshold number of specimens.
   #' 
   #' @param threshold An integer value for the threshold number of specimens
@@ -246,7 +249,7 @@ calculate_threshold_accuracy <- function(threshold, specimens) {
               TRUE ~ "threatened") %>%
     factor(levels=levels(specimens$obs))
   
-  confusion <- confusionMatrix(predictions, specimens$obs, mode="everything")
+  confusion <- confusionMatrix(predictions, specimens$obs, mode="everything", positive=positive_case)
   
   tibble(threshold=threshold, 
          accuracy=confusion$overall["Accuracy"],
@@ -286,13 +289,13 @@ assess_species_rcat <- function(species_df, cellsize) {
     species_coordinates <- (species_df[species_df$species==species, 
                                        c("latitude", "longitude")])
     colnames(species_coordinates) <- c("lat", "long")
-    species_xy <- simProjWiz(species_coordinates, trueCOGll(species_coordinates))
+    species_xy <- rCAT::simProjWiz(species_coordinates, rCAT::trueCOGll(species_coordinates))
     
     occurences <- nrow(species_xy)
-    eoo_area <- EOOarea(species_xy) / -1000000
-    aoo_area <- AOOsimp(species_xy, cellsize) * (cellsize / 1000)^2
-    eoo_rating <- EOORating(eoo_area)
-    aoo_rating <- AOORating(aoo_area)
+    eoo_area <- rCAT::EOOarea(species_xy) / -1000000
+    aoo_area <- rCAT::AOOsimp(species_xy, cellsize) * (cellsize / 1000)^2
+    eoo_rating <- rCAT::EOORating(eoo_area)
+    aoo_rating <- rCAT::AOORating(aoo_area)
     
     results_df[nrow(results_df)+1, ] <- list(species, occurences, eoo_rating,
                                              as.numeric(eoo_area), 

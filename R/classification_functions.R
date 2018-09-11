@@ -33,7 +33,7 @@ run_classification <- function(method_info,
   }
   
   if (!is.null(save_file)) {
-    write_rds(method_info, paste(save_file, ".rds", sep=""))
+    write_rds(method_info, here("output", paste(save_file, ".rds", sep="")))
   }
   
   if (!is.null(save_file)) {
@@ -252,7 +252,7 @@ run_method <- function(data, parameters, save_file=NULL) {
                                  parameters$method)))
    
   if (!is.null(save_file)) {
-    write_csv(results, here("output", paste(save_file, ".csv", sep="")))
+    write_csv(results, here("output", paste(save_file, "_results.csv", sep="")))
   }
   
   results %>%
