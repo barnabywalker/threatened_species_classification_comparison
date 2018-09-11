@@ -1,5 +1,5 @@
 # The use and abuse of herbarium specimens in evaluating plant extinction risks
-This repository contains the code used to compare methods of classifying species as threatened for the submitted paper "The use and abuse of herbarium specimens in evaluating plant extinction risks".
+This repository contains the code used to compare methods of classifying species as threatened for the submitted paper "The use and misuse of herbarium specimens in evaluating plant extinction risks".
 
 ## Structure
 The entire analysis (running the classifications, analysing the results, and producing figures) was run using the *run_analysis.R* script in the root directory.
@@ -13,7 +13,9 @@ The *run_analysis.R* script calls three separate scripts, which are stored in th
 
 3. *plot_results.R* - This uses the results from the previous analysis script to plot the figures displayed in the paper and supplementary materials, and save them to a **figures** folder.
 
-4. *report_templates* - Is a set of scripts that are rendered as notebooks in an **notebooks** folder, displaying the results of each method, with an overview of the results from all methods as well.
+4. *report_templates* - Is a set of scripts that are rendered as notebooks in a **notebooks** folder, displaying the results of each method, with an overview of the results from all methods as well.
+
+There is also a *run_us_localities.R* analysis script, which runs the US Method at for GADM administrative levels 0 to 3.
 
 ### R
 Functions used in the analysis are stored in the **R** folder as separate files according to their use:
@@ -22,9 +24,9 @@ Functions used in the analysis are stored in the **R** folder as separate files 
 
 2. *data_processing_functions.R* - Functions used for the preprocessing step of the classification pipeline.
 
-3. *method_functions.R* - Functions defining each of the classification methods used. These are: Random forests, rCAT, ConR, Specimen count, and the US method.
+3. *method_functions.R* - Functions defining each of the classification methods used. These are: Random Forests, rCAT, ConR, Specimen Count, and the US Method.
 
-4. *analysis_functions.R* - Functions used to help withe analysis of the classification results.
+4. *analysis_functions.R* - Functions used to help with analysis of the classification results.
 
 ### scripts
 This folder contains scripts written in Python to prepare the predictor data in order to run all of the classifications:
