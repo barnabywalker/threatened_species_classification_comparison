@@ -1,5 +1,7 @@
 """Class definition and associated functions for requesting data from
-IUCN Red List. Run as a script it downloads all of the latest redlist.
+IUCN Red List. Run as a script it downloads the latest Red List.
+You need an API token to use it, available from 
+http://apiv3.iucnredlist.org/api/v3/token.
 """
 
 import requests
@@ -19,7 +21,7 @@ def region_list(token):
 
     url = "http://apiv3.iucnredlist.org/api/v3/region/list"
     response = requests.get(url, params={"token": token})
-    return response.json()["results"]
+    return {line["name"]: line["identifier"] for line in response.json()["results"]}
 
 
 def make_request(url, token):
@@ -100,6 +102,15 @@ class redListGetter(object):
     def get_species_info(self, info_type, value, field="id", region=None):
         """Get a given type of information (e.g. threats, habitats) for given
         species name or id.
+
+        parameters:
+        info_type - str, the type of info to request, e.g. habitats
+        value - str, the species name or id to get info for
+        field - str, whether to query by species name or id
+        region - str, optional region to query within
+
+        returns:
+        json of response information
         """
         url = self.species_urls.get(info_type)
 
@@ -144,6 +155,15 @@ class redListGetter(object):
     def get_all_species_info(self, species_list, info_type, field="id", region=None):
         """Get all of a particular type of info (e.g. threats) for a list of species
         names or ids.
+
+        parameters:
+        species_list - list of species names or ids to query
+        info_type - str, the type of info to request, e.g. habitats
+        field - str, whether to query by species name or id
+        region - str, optional region to query within
+
+        returns:
+        list of query results
         """
         returned_data = []
         for species in species_list:
@@ -154,40 +174,17 @@ class redListGetter(object):
         return returned_data
 
 
-    def get_region_identifier(self, identifier):
+    def get_region_identifier(self, region):
         """Utility to get a region identifier for a region"""
 
-        if identifier not in self.regions:
+        if region not in self.regions:
             raise KeyError("Not a recognised region")
 
-
-def download_info(info_type, token, save_file=None):
-    """Utility to download info from the redlist to a file.
-    """
-    if info_type not in INFO_TYPES:
-        raise ValueError("{} is not a recognised piece of information in the Red List API".format(info_type))
-
-    if save_file is None:
-        date = datetime.datetime.now()
-        save_file = "../output/redlist_download_{info}_{date}.csv".format(info=info_type, date=date.strftime("%Y%m%d"))
-
-    getter = redListGetter(token=token)
-    redlist = getter.get_all_pages()
-    plants = [name for name in redlist if name["kingdom_name"] == "PLANTAE"]
-
-    if info_type == "redlist":
-        data = plants
-    else:
-        data = getter.get_all_species_info([plant["taxonid"] for plant in redlist], info_type)
-
-    with open(save_file, "w", newline="") as outfile:
-        writer = csv.DictWriter(outfile, fieldnames=data[0].keys())
-        writer.writeheader()
-        writer.writerows(data)
+        return self.regions.get(region)
 
 
 def log_progress(sequence, every=None, size=None, name='Items'):
-    """A widget for logging the progess of the requests.
+    """A html widget for logging the progess of the requests.
     Copied from https://github.com/alexanderkuk/log-progress.
     """
     from ipywidgets import IntProgress, HTML, VBox
@@ -248,15 +245,25 @@ def log_progress(sequence, every=None, size=None, name='Items'):
 
 def main():
     parser = ArgumentParser(description="download information from the Red List API")
-    parser.add_argument("info", help="The piece of information to download, must be one of {}".format(INFO_TYPES))
     parser.add_argument("-t", "--token", help="Access token for Red List API")
-    parser.add_argument("-o", "--outfile", help="Name of file to save downloaded information")
+    parser.add_argument("-o", "--outfile", help="Name of file to save redlist to")
     args = parser.parse_args()
 
     if not args.token:
         raise ValueError("No token provided for API, you must provide a token")
 
-    download_info(args.info, args.token, save_file=args.outfile)
+    save_file = args.outfile
+    if save_file is None:
+        date = datetime.datetime.now()
+        save_file = "../output/redlist_download_{date}.csv".format(date=date.strftime("%Y%m%d"))
+
+    getter = redListGetter(token=args.token)
+    redlist = getter.get_all_pages()
+    
+    with open(save_file, "w", newline="") as outfile:
+        writer = csv.DictWriter(outfile, fieldnames=redlist[0].keys())
+        writer.writeheader()
+        writer.writerows(redlist)
 
 
 if __name__ == "__main__":

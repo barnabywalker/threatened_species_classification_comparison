@@ -1,6 +1,7 @@
 data
 figures
 output
+manuscript
 notebooks
 .vscode
 .Rproj.user
@@ -10,3 +11,4 @@ notebooks
 packrat/lib
 packrat/lib-ext
 packrat/lib-R
+packrat/lib*/
